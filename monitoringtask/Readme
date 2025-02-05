@@ -1,0 +1,239 @@
+1- Create Ansible Playbook to install prometheus, node exporter, grafana
+# ansible/playbook.yml
+---
+- name: Install Monitoring Stack
+  hosts: all
+  become: true
+  tasks:
+    - name: Install Prometheus
+      block:
+        - name: Create Prometheus user
+          user:
+            name: prometheus
+            system: yes
+            shell: /bin/false
+
+        - name: Download Prometheus
+          get_url:
+            url: https://github.com/prometheus/prometheus/releases/download/v2.45.0/prometheus-2.45.0.linux-amd64.tar.gz
+            dest: /tmp/prometheus.tar.gz
+
+        - name: Extract Prometheus
+          unarchive:
+            src: /tmp/prometheus.tar.gz
+            dest: /opt/
+            remote_src: yes
+
+        - name: Create Prometheus directories
+          file:
+            path: "{{ item }}"
+            state: directory
+            owner: prometheus
+            group: prometheus
+          loop:
+            - /etc/prometheus
+            - /var/lib/prometheus
+
+        - name: Configure Prometheus
+          template:
+            src: prometheus.yml.j2
+            dest: /etc/prometheus/prometheus.yml
+            owner: prometheus
+            group: prometheus
+
+        - name: Create Prometheus service
+          template:
+            src: prometheus.service.j2
+            dest: /etc/systemd/system/prometheus.service
+
+    - name: Install Node Exporter
+      block:
+        - name: Download Node Exporter
+          get_url:
+            url: https://github.com/prometheus/node_exporter/releases/download/v1.6.0/node_exporter-1.6.0.linux-amd64.tar.gz
+            dest: /tmp/node_exporter.tar.gz
+
+        - name: Extract Node Exporter
+          unarchive:
+            src: /tmp/node_exporter.tar.gz
+            dest: /opt/
+            remote_src: yes
+
+        - name: Create Node Exporter service
+          template:
+            src: node_exporter.service.j2
+            dest: /etc/systemd/system/node_exporter.service
+
+    - name: Install Grafana
+      block:
+        - name: Add Grafana repository
+          apt_repository:
+            repo: deb https://packages.grafana.com/oss/deb stable main
+            state: present
+
+        - name: Add Grafana GPG key
+          apt_key:
+            url: https://packages.grafana.com/gpg.key
+            state: present
+
+        - name: Install Grafana package
+          apt:
+            name: grafana
+            state: latest
+            update_cache: yes
+
+        - name: Start Grafana service
+          systemd:
+            name: grafana-server
+            state: started
+            enabled: yes
+
+2- Lab Promtheus, grafana, alert manager, slack intgeration 
+
+# configs/prometheus.yml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets: ['localhost:9100']
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['localhost:9093']
+
+# configs/alertmanager.yml
+global:
+  slack_api_url: 'https://hooks.slack.com/services/YOUR_SLACK_WEBHOOK_URL'
+
+route:
+  receiver: 'slack-notifications'
+  group_by: ['alertname']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+- name: 'slack-notifications'
+  slack_configs:
+  - channel: '#alerts'
+    send_resolved: true
+
+3- Any infrastructure will be deployed on AWS, please provide Terraform Code
+
+
+# terraform/main.tf
+provider "aws" {
+  region = "us-west-2"
+}
+
+resource "aws_vpc" "monitoring_vpc" {
+  cidr_block = "10.0.0.0/16"
+  
+  tags = {
+    Name = "monitoring-vpc"
+  }
+}
+
+resource "aws_subnet" "monitoring_subnet" {
+  vpc_id     = aws_vpc.monitoring_vpc.id
+  cidr_block = "10.0.1.0/24"
+
+  tags = {
+    Name = "monitoring-subnet"
+  }
+}
+
+resource "aws_security_group" "monitoring_sg" {
+  name        = "monitoring-sg"
+  description = "Security group for monitoring stack"
+  vpc_id      = aws_vpc.monitoring_vpc.id
+
+  ingress {
+    from_port   = 9090
+    to_port     = 9090
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 9100
+    to_port     = 9100
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 3000
+    to_port     = 3000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "monitoring_instance" {
+  ami           = "ami-00c257e12d6828491"
+  instance_type = "t2.micro"
+  subnet_id     = aws_subnet.monitoring_subnet.id
+  
+  vpc_security_group_ids = [aws_security_group.monitoring_sg.id]
+
+  tags = {
+    Name = "monitoring-instance"
+  }
+}
+
+
+
+4- Show off your work by pushing it to Github and write a well-explained Readme file
+# README.md
+# Monitoring Stack with Prometheus, Grafana and AlertManager
+
+This repository contains Infrastructure as Code (IaC) for deploying a complete monitoring stack using:
+
+- Prometheus for metrics collection
+- Node Exporter for system metrics
+- Grafana for visualization
+- AlertManager for alerts
+- Slack integration for notifications
+
+## Architecture
+
+The stack is deployed on AWS using:
+- VPC with public subnet
+- EC2 instance running the monitoring services
+- Security group with required ports open
+
+## Prerequisites
+
+- AWS Account
+- Terraform installed
+- Ansible installed
+- Slack Webhook URL
+
+## Deployment Steps
+
+1. Clone this repository
+2. Update `terraform.tfvars` with your AWS credentials
+3. Update `configs/alertmanager.yml` with your Slack webhook URL
+
