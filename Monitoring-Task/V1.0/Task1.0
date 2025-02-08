@@ -1,0 +1,4 @@
+1- Create Ansible Playbook to install prometheus, node exporter, grafana
+2- Lab Promtheus, grafana, alert manager, slack intgeration 
+3- Any infrastructure will be deployed on AWS, please provide Terraform Code
+4- Show off your work by pushing it to Github and write a well-explained Readme file
