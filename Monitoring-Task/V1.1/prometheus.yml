@@ -1,0 +1,36 @@
+# configs/prometheus.yml
+global:
+  scrape_interval: 15s  # How often to scrape targets
+  evaluation_interval: 15s  # How often to evaluate rules
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['localhost:9093']  # AlertManager endpoint
+
+# Rule files for alerting rules
+rule_files:
+  - /etc/prometheus/alert_rules.yml  # Path to alert rules file
+
+# Scrape configurations
+scrape_configs:
+  # Scrape Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']  # Prometheus server
+
+  # Scrape Node Exporter for system metrics
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets: ['localhost:9100']  # Node Exporter
+
+  # Scrape cAdvisor for Docker and container metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['localhost:8080']  # cAdvisor
+
+  # Optional: Scrape Docker Engine metrics (if Docker exposes metrics directly)
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['localhost:9323']  # Docker Engine metrics endpoint
