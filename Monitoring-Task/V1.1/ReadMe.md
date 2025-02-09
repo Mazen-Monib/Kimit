@@ -17,5 +17,8 @@ scrape_configs:
   - job_name: 'cadvisor'
     static_configs:
       - targets: ['localhost:8080']
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['localhost:9323']  
 
 #you will find the prometheus.yml File in the repo
